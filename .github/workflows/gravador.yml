@@ -1,0 +1,64 @@
+name: Gravador Sincronizado
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  gravar_tudo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout do Codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Fuso Horario Brasil
+        run: sudo timedatectl set-timezone America/Sao_Paulo
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar Dependencias (Streamlink e Rclone)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rclone
+          pip install --upgrade streamlink
+
+      - name: Configurar o Google Drive (Rclone)
+        run: |
+          mkdir -p ~/.config/rclone
+          cat << 'EOF' > ~/.config/rclone/rclone.conf
+          ${{ secrets.RCLONE_CONFIG_DATA }}
+          EOF
+
+      - name: Gravar Video e Chat Sincronizados
+        run: |
+          echo "Checando se o canal snopey esta ao vivo..."
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          
+          if streamlink twitch.tv/snopey best --stream-url > /dev/null 2>&1; then
+            echo "Canal online! Iniciando gravacao sincronizada..."
+            python gravador3.py &
+            CHAT_PID=$!
+            sleep 3
+            streamlink twitch.tv/snopey best --twitch-disable-hosting --twitch-low-latency -o "snopey_${TIMESTAMP}.mp4"
+            kill -SIGINT $CHAT_PID
+            sleep 5 
+          else
+            echo "Canal offline. Nenhuma gravacao iniciada."
+          fi
+
+      - name: Enviar Video E Chat para o Google Drive
+        if: always()
+        run: |
+          if [ -f *.mp4 ]; then
+            echo "Enviando arquivos para o Google Drive..."
+            rclone copy . gdrive01:Lives_Gravadas --include "*.mp4" --include "*.json" -v
+            rm -f *.mp4 *.json
+          else
+            echo "Nenhum arquivo para enviar."
+          fi
