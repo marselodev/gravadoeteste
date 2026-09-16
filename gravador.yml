@@ -1,0 +1,75 @@
+name: Gravador Sincronizado (Vídeo + Chat)
+
+on:
+  schedule:
+    # Tenta rodar a cada 15 minutos
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  gravar_tudo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Configurar Fuso Horário Brasil
+        run: sudo timedatectl set-timezone America/Sao_Paulo
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar Dependências (Streamlink e Rclone)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rclone
+          pip install --upgrade streamlink
+
+      - name: Configurar o Google Drive (Rclone)
+        run: |
+          mkdir -p ~/.config/rclone
+          cat << 'EOF' > ~/.config/rclone/rclone.conf
+          ${{ secrets.RCLONE_CONFIG_DATA }}
+          EOF
+
+      - name: Gravar Vídeo e Chat Sincronizados
+        run: |
+          echo "Checando se o canal snopey está ao vivo..."
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          
+          # Testa se está online rápido
+          if streamlink twitch.tv/snopey best --stream-url > /dev/null 2>&1; then
+            echo "Canal online! Iniciando gravação sincronizada..."
+            
+            # 1. Inicia o script do chat em segundo plano
+            python gravador3.py &
+            CHAT_PID=$!
+            
+            # 2. Dá 3 segundos pro Python conectar
+            sleep 3
+            
+            # 3. Inicia o vídeo (o sistema fica gravando aqui até a live acabar)
+            streamlink twitch.tv/snopey best --twitch-disable-hosting --twitch-low-latency -o "snopey_${TIMESTAMP}.mp4"
+            
+            # 4. Quando o vídeo acabar, manda o sinal para o gravador3.py salvar o JSON
+            kill -SIGINT $CHAT_PID
+            sleep 5 
+          else
+            echo "Canal offline. Nenhuma gravação iniciada."
+          fi
+
+      - name: Enviar Vídeo E Chat para o Google Drive
+        if: always()
+        run: |
+          # Se o arquivo de vídeo existir, ele manda o vídeo (.mp4) e o chat (.json) juntos pro Drive
+          if [ -f *.mp4 ]; then
+            echo "Enviando arquivos para o Google Drive..."
+            rclone copy . gdrive01:Lives_Gravadas --include "*.mp4" --include "*.json" -v
+            rm -f *.mp4 *.json
+          else
+            echo "Nenhum arquivo para enviar."
+          fi
