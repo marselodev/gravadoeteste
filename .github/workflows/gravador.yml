@@ -46,7 +46,9 @@ jobs:
             CHAT_PID=$!
             sleep 3
             streamlink twitch.tv/snopey best --twitch-disable-hosting --twitch-low-latency -o "snopey_${TIMESTAMP}.mp4"
-            kill -SIGINT $CHAT_PID
+            
+            # Correção aplicada aqui:
+            kill -SIGINT $CHAT_PID 2>/dev/null || true
             sleep 5 
           else
             echo "Canal offline. Nenhuma gravacao iniciada."
@@ -55,7 +57,7 @@ jobs:
       - name: Enviar Video E Chat para o Google Drive
         if: always()
         run: |
-          if [ -f *.mp4 ]; then
+          if ls *.mp4 1> /dev/null 2>&1; then
             echo "Enviando arquivos para o Google Drive..."
             rclone copy . gdrive01:Lives_Gravadas --include "*.mp4" --include "*.json" -v
             rm -f *.mp4 *.json
