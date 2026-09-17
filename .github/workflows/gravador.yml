@@ -1,4 +1,4 @@
-name: Gravador Sincronizado
+name: Gravador
 
 on:
   schedule:
