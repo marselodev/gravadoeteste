@@ -2,8 +2,14 @@ name: Gravador
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    # Roda a cada 15 minutos, entre 14:00 e 22:59 (Horário de Brasília)
+    - cron: '*/15 17-23,0-1 * * *'
   workflow_dispatch:
+
+# Evita que o GitHub abra duas gravações ao mesmo tempo
+concurrency:
+  group: gravacao
+  cancel-in-progress: false
 
 jobs:
   gravar_tudo:
@@ -38,16 +44,15 @@ jobs:
       - name: Gravar Video e Chat Sincronizados
         run: |
           echo "Checando se o canal snopey esta ao vivo..."
-          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          DATA=$(date +%d-%m-%Y)
           
           if streamlink twitch.tv/snopey best --stream-url > /dev/null 2>&1; then
             echo "Canal online! Iniciando gravacao sincronizada..."
             python gravador3.py &
             CHAT_PID=$!
             sleep 3
-            streamlink twitch.tv/snopey best --twitch-disable-hosting --twitch-low-latency -o "snopey_${TIMESTAMP}.mp4"
+            streamlink twitch.tv/snopey best --twitch-disable-hosting --twitch-low-latency -o "snopey_${DATA}.mp4"
             
-            # Correção aplicada aqui:
             kill -SIGINT $CHAT_PID 2>/dev/null || true
             sleep 5 
           else
