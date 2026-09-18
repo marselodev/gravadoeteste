@@ -179,9 +179,9 @@ def monitorar_e_gravar():
         if not comments:
             print("Nenhum comentário foi gravado. O arquivo JSON não será gerado.")
             return
-
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        nome_json = f"chat_{STREAMER_NAME}_{timestamp}.json"
+            
+        data_simples = datetime.now().strftime("%d-%m-%Y")
+        nome_json = f"chat_{STREAMER_NAME}_{data_simples}.json"
         
         duracao_final = float(comments[-1]["content_offset_seconds"]) if comments else 0.0
 
